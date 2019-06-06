@@ -1,0 +1,115 @@
+import torch
+import torchvision
+import torchvision.transforms as transforms
+import torch.nn as nn
+import torch.nn.functional as F
+
+from torch.autograd import Variable
+import numpy as np
+import os
+import copy
+
+path = os.path.abspath(__file__)
+dir_path = os.path.dirname(path)
+
+class MNIST_Net(nn.Module):
+    def __init__(self, N=10):
+        super(MNIST_Net, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1,  6, 5),
+            nn.MaxPool2d(2, 2), # 6 24 24 -> 6 12 12
+            nn.ReLU(True),
+            nn.Conv2d(6, 16, 5), # 6 12 12 -> 16 8 8
+            nn.MaxPool2d(2, 2), # 16 8 8 -> 16 4 4
+            nn.ReLU(True)
+        )
+        self.classifier =  nn.Sequential(
+            nn.Linear(16 * 4 * 4, 120),
+            nn.ReLU(),
+            nn.Linear(120, 84),
+            nn.ReLU(),
+            nn.Linear(84, N),
+            nn.Softmax(1)
+        )
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = x.view(-1, 16 * 4 * 4)
+        x = self.classifier(x)
+        return x
+
+class MNIST_Net2(nn.Module):
+    def __init__(self):
+        super(MNIST_Net2, self).__init__()
+        self.conv1 = nn.Conv2d(1, 20, 5, 1)
+        self.conv2 = nn.Conv2d(20, 50, 5, 1)
+        self.fc1 = nn.Linear(4*4*50, 500)
+        self.fc2 = nn.Linear(500, 10)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.max_pool2d(x, 2, 2)
+        x = F.relu(self.conv2(x))
+        x = F.max_pool2d(x, 2, 2)
+        x = x.view(-1, 4*4*50)
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        return F.log_softmax(x, dim=1)
+
+
+
+def test_MNIST(model,max_digit=10,name='mnist_net'):
+    confusion = np.zeros((max_digit,max_digit),dtype=np.uint32) # First index actual, second index predicted
+    confusion2 = np.zeros((max_digit,max_digit),dtype=np.uint32)
+    v_change = 0
+    correct = 0
+    correct2 = 0
+    N = 0
+    for d,l in mnist_test_data:
+        if l < max_digit:
+            N += 1
+            d = Variable(d.unsqueeze(0))
+            outputs = model.networks[name].net.forward(d)
+            _, out = torch.max(outputs.data, 1)
+            c = int(out.squeeze())
+            c2 = 9 - c
+            #print(l,c)
+            b = copy.copy(c)
+            confusion[l,c] += 1
+            confusion2[l,c2] += 1
+            if c == l:
+                correct += 1
+            if c2 == l:
+                correct2 += 1
+            v_change+=(b!=c)
+    acc2 = correct2/N
+    acc = correct / N
+    print("Correct: {}\nCorrect2: {}\nN: {}\nAcc: {}\nAcc2: {}\nv_change: {}".format(correct, correct2,N, acc,acc2,v_change))
+    print(confusion)
+    print(confusion2)
+    F1 = 0
+    for nr in range(max_digit):
+        TP = confusion[nr,nr]
+        FP = sum(confusion[:,nr])-TP
+        FN = sum(confusion[nr,:])-TP
+        F1 += 2*TP/(2*TP+FP+FN)*(FN+TP)/N
+    print('F1: ',F1)
+    print('Accuracy: ', acc)
+    print('Accuracy2: ', acc2)
+    return [('F1',F1),('Accuracy', acc), ('Accuracy2', acc2)]
+
+
+def neural_predicate(network, i, dataset='train'):
+    i = int(i)
+    dataset = str(dataset)
+    if dataset == 'train':
+        d, l = mnist_train_data[i]
+    elif dataset == 'test':
+        d, l = mnist_test_data[i]
+    d = Variable(d.unsqueeze(0))
+    output = network.net(d)
+    return output.squeeze(0)
+
+transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
+mnist_train_data = torchvision.datasets.MNIST(root=dir_path+'/../../../data/MNIST', train=True, download=True,transform=transform)
+mnist_test_data = torchvision.datasets.MNIST(root=dir_path+'/../../../data/MNIST', train=False, download=True,transform=transform)
