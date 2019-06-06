@@ -1,4 +1,16 @@
-# DeepProbLog
+# SymStat Project
+
+The code for the SymStat project can be found in folder "project".
+
+In folder "exp_nets" are the different code for all of the seven models that got compared.
+
+
+
+
+
+
+
+# DeepProbLog-ReadMe
 
 DeepProbLog is an extension of [ProbLog](https://dtai.cs.kuleuven.be/problog/) that integrates Probabilistic Logic Programming with Deep Learning. See our [paper](https://arxiv.org/abs/1805.10872) on DeepProbLog.
 
